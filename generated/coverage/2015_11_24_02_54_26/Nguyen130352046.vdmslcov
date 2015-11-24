@@ -5,39 +5,64 @@ imports from IO		 functions  println	renamed println;
 															print		renamed print
 definitions
 
--- Dots And Boxes Game
--- Basic Priciple:
--- 1. input and output are through coordinates. (user friendly)
--- 2. game logic is through moves.
+-- IMPORTANT!
+-- input and output through coordinates! (user friendly)
+-- game logic thrrough moves!
 
 -- please run testGame[type] operation (no parameter required) to test the game 
--- ex print testGameNaive() or print testGameDC() (For Double Cross case)
+-- ex print testGameNaive() or print testGameDC()
 
 -- common abbreviations
 -- [VIS] the function/operation is for theh game visulisation purpose and does not have anything to do with the game logic
 -- [N_ISB] the function/operation will not be translated to Isabelled as it does not have anything to do with the game logic
 
--- I avoid the use of composite types as it could be potentially tricky to translate to isabelle (not sure yet)
 
 values 
 -- values section maintains basic board and game configurations that need to be known at state initialisation
-
--- A unique seq of MOVES_CARD numbers identifying valid moves
--- This will be use to distinguish valid moves from invalid ones.
--- implementation below
 MUV : MoveUVS = MoveUniqueValues();
 
 -- predefined box-move mapping based on coords thanks to Leo's idea.
--- each move is numbered by a UNIQUE VALUE (UV) calculated from its two points base N.
--- EX If 2 points connecting a move is 0.0 and 0.1 then UV = 0001 Base N. 
--- Points are ordered based on their distance to the origin.
 -- another option is move based numbering which potentially could support the selection of best moves better. 
 -- See move_based.jpg please.
 BOX_MOVES_MAPPING : BoxMovesMapping = genBoxMovesMapping(BOXES_CARD, MUV);
-			
--- [VIS] [N_ISB]		
+-- a numbering scheme based on types of moves. Needs further consideration. See move_based.jpg
+--									{
+--										0 |-> [0, 11, 12, 19], 
+--										1 |-> [1, 12, 13, 20], 
+--										2 |-> [2, 3, 13, 14], 
+--										3 |-> [4, 14, 15, 21],
+--										4 |-> [5, 6, 15, 16], 
+--										5 |-> [7, 16, 17, 22],
+--										6 |-> [8, 9, 17, 18],
+--										7 |-> [10, 18, 19, 23], 
+--										8 |-> [20, 21, 22, 23] 
+--									};
+-- intuitive numbering. Clock wise order. See intuitive.jpg
+										-- {
+										-- 0 |-> [0, 4, 7, 3], 
+										-- 1 |-> [1, 5, 8, 4], 
+										-- 2 |-> [2, 6, 9, 5], 
+										-- 3 |-> [7, 11, 14, 10],
+										-- 4 |-> [8, 12, 15, 11], 
+										-- 5 |-> [9, 13, 16, 12],
+										-- 6 |-> [14, 18, 21, 17],
+										-- 7 |-> [15, 19,  22, 18], 
+										-- 8 |-> [16, 20, 23, 19] 
+										-- };
+					
 -- mapping in clock wise order of moves
 BOARD_MAPPING : MoveUVS = MUV; 
+														-- See move_based.jpg
+														--	[ 0, 1, 2, 11, 12, 13, 3,
+														--	 19, 20, 14, 10, 23, 21, 4,
+														--	 18, 22, 15, 9, 17, 16, 5,
+														-- 	 8, 7, 6];
+														
+														-- See intuitive.jpg
+														--[0, 1, 2, 3, 4, 5, 6,
+														--7, 8, 9, 10, 11, 12, 13, 
+														--14, 15, 16, 17, 18, 19, 
+														--20, 21, 22, 23];
 															 
 -- [VIS] [N_ISB] 
 BOARD_BOX_SIDE : Moves = genBoxesSides(BOXES_CARD - 1, MUV);
@@ -62,6 +87,8 @@ MOVES_CARD = 24;
 
 -- an example of moves
 moves1 : Moves = [0, 23, 20, 21, 5, 12, 19, 22];
+
+-- todo write some scripts here to test
 
 types 
 
@@ -106,7 +133,7 @@ MoveType = <Sides> | <Spokes> | <Cen>;
 TurnCount = nat 
 inv turnCount == turnCount <= MOVES_CARD;
 
--- 1 single coordinate
+-- 1 singlel coordinate
 Coord = nat
 inv coord == coord < N;  
 
@@ -114,27 +141,27 @@ inv coord == coord < N;
 Point = seq of Coord
 inv point == len point = 2;
 
--- a pair is simply a pair of points which could be of any order and could potentially be used for input.
+-- a pair is simply a pair of points which could be any points.
 -- this is defined so that later work could just refer to a seq of 2 points 
 -- without having to repeat the invariant
 Pair = seq of Point
 inv pair == len pair = 2 and card elems pair = len pair;
 			
--- PairMove[p1, p2] <=> Move
--- a PairMove is a valid pair of points that is able to construct a Move.  
+-- a PairMove is a valid pair of points that is able to construct a Move. 
 -- 2 points are stored in order of their corresponding distance to the origin.
--- There is no need to rule out diagonal moves or out of bound moves. 
--- All invalid moves will have values which are different from valid ones.
+-- I limit the use of compositive types as it could be hard to translate to isabelle
+-- there is no need to rule out dianogal moves. All invalid moves will have unique values which are different from valid ones.
 PairMove = Pair
 inv pL == getUV(pL(1)(1), pL(1)(2), pL(2)(1), pL(2)(2)) in set elems MUV;
 
--- simple user input that contains a seq of Pair
+-- simple user input
 Input = seq of Pair
 inv input == card elems input = len input and len input < MOVES_CARD and 
 forall pair in set elems input & isPairAPairMove(pair, MUV);
 		
+		
 functions 
--- new implementation adapting coords.
+-- new implementation
 
 -- generate BOX_MOVE_MAPPING!!
 -- produce the mapping in an automated way thanks to Leo's idea.
@@ -147,12 +174,12 @@ post isValidMapping(RESULT) -- should be a valid map after each call
 measure generateBoxMovesMapping_measure; 
 				
 -- work out the sqr distance of a point from origin
--- no need to calculate the real distance as the square roor is potentially expensive. The square is sufficient.
+-- no need to calculate the real distance as the square roor is potentially expensive. Its square is sufficient.
 distanceSqrToOrigin: Point -> nat
 distanceSqrToOrigin(point) == 
-				point(1) * point(1) + point(2) * point(2); 
+				point(1) * point(2); 
 
--- see if a pair can be a pair move (a pair needs not be ordered)
+-- see if a pair can be a move (needs not ordered)
 isPairAPairMove: Pair * MoveUVS -> bool
 isPairAPairMove(pair, muv) == 
 -- check both ways
@@ -168,8 +195,7 @@ toPairMove(pair, muv) ==
 	if d1 < d2 then
 		[pair(1), pair(2)]
 	else [pair(2), pair(1)]
-pre isPairAPairMove(pair, muv)
-post inv_PairMove(RESULT); -- a pair needs to be convertible first..
+pre isPairAPairMove(pair, muv); -- a pair needs to be convertible first..
 
 -- getMoveUniqueValue
 -- get a unique value (UV) for a move (pairMove)
@@ -222,9 +248,10 @@ measure genBoxesSides_measure;
 genBoxesSides_measure: nat * MoveUVS -> nat
 genBoxesSides_measure(max_id, muv) == max_id;
 
+
 -- check is both players take turn to play based on the moves taken
 -- what needs checking
--- Total number of moves w/ boxes wond
+-- Total number of moves w/ boxes won
 -- sequence of moves (sync)
 fairPlay: nat * nat * Player -> bool
 fairPlay(turns_p1, turns_p2, currentPlayer) == 
@@ -341,7 +368,7 @@ playerBoxSideMapping_measure(boxes, player) == card boxes;
 -- generate some silly moves
 generateNaiveMoves: () -> Input
 generateNaiveMoves() == [
-												[[0,1],[0,0]], [[0,1],[0,2]], [[0,3],[0,2]], 
+												[[0,0],[0,1]], [[0,1],[0,2]], [[0,2],[0,3]], 
 												[[0,0],[1,0]], [[0,1],[1,1]], [[0,2],[1,2]], [[0,3],[1,3]], 
 												[[1,0],[1,1]], [[1,1],[1,2]], [[1,2],[1,3]], 
 												[[1,0],[2,0]], [[1,1],[2,1]], [[1,2],[2,2]], [[1,3],[2,3]],  
@@ -351,20 +378,14 @@ generateNaiveMoves() == [
 												
 
 -- generate Double Cross moves
--- orders of 2 points in a pair are not restricted.
 generateDCMoves: () -> Input
-generateDCMoves() == [ 
-										 [[0,1],[0,0]], 
-										 [[0,0],[1,0]], [[1,1],[0,1]], [[0,2],[1,2]], [[1,3],[0,3]],
-										 [[1,1],[1,2]],
-										 [[1,0],[2,0]], [[1,1],[2,1]], [[2,3],[1,3]],  
-									   [[2,2],[2,3]],
-									   [[2,0],[3,0]],	[[2,1],[3,1]],
-									   [[3,1],[3,2]], [[3,2],[3,3]],
-									   [[1,0],[1,1]], [[0,1],[0,2]], [[3,0],[3,1]], -- p1 gets 2 out of 4 winnable boxes and double crosses
-										 [[2,0],[2,1]], [[1,2],[2,2]],							 -- p2 gets 2 boxes and now has to open the chain
-										 [[1,2],[1,3]], [[2,1],[2,2]], [[0,3],[0,2]] -- p1 now gets the big chain and wins
-										 										 
+generateDCMoves() == [
+										 [[0,0],[0,1]], 
+										 [[0,0],[1,0]], [[0,1],[1,1]], [[0,2],[1,2]], [[1,3],[0,3]] 
+										 --[[1,0],[2,0]], [[1,1],[2,1]], [[3,2],[1,3]],  
+									   --[[2,3],[2,2]], 
+									   --[[2,0],[3,0]],	[[2,1],[3,1]],
+									   --[[3,1],[3,2]], [[3,3],[3,2]] 
 										 ]; 
 				
 -- main course
@@ -536,6 +557,7 @@ playGame_Coords(pairs) ==
 (
 dcl ms : Moves := [];
 for i = 1 to len pairs by 1 do (
+ println(pairs(i));
  ms := ms ^ [getMUV(toPairMove(pairs(i), MUV))];
  println(toPairMove(pairs(i), MUV)));
  return playGame_Moves(ms);
@@ -565,7 +587,7 @@ testGameDC() ==
 printBoard: () ==> ()
 printBoard() == 
 (
-	println("\n******************START A NEW MOVE*********************************");
+	print("Current Player: "); println(currentPlayer);
 	print("Moves: "); println(moves);
 	print("P1 Moves: "); println(moves_p1);
 	print("P1 turn count: "); println(turns_p1);
@@ -574,12 +596,11 @@ printBoard() ==
 	print("P2 turn count: "); println(turns_p2);
 	print("Boxes won by P2: "); println(boxes_p2);
 	print("Box_Side_Mapping: "); println(box_side_won);
-	print("Board Visualisation: \n"); displayBoard(moves);
 	if resultResolved then 
 		(
 			print("Winner: "); println(winner)
 		);
-	print("Next Player: "); println(currentPlayer);
+	print("Board Visualised: \n"); displayBoard(moves);
 );
 
 -- visualise the board

@@ -5,10 +5,9 @@ imports from IO		 functions  println	renamed println;
 															print		renamed print
 definitions
 
--- Dots And Boxes Game
--- Basic Priciple:
--- 1. input and output are through coordinates. (user friendly)
--- 2. game logic is through moves.
+-- IMPORTANT!
+-- input and output are through coordinates. (user friendly)
+-- game logic is through moves.
 
 -- please run testGame[type] operation (no parameter required) to test the game 
 -- ex print testGameNaive() or print testGameDC() (For Double Cross case)
@@ -17,13 +16,11 @@ definitions
 -- [VIS] the function/operation is for theh game visulisation purpose and does not have anything to do with the game logic
 -- [N_ISB] the function/operation will not be translated to Isabelled as it does not have anything to do with the game logic
 
--- I avoid the use of composite types as it could be potentially tricky to translate to isabelle (not sure yet)
-
+-- i avoid the use of composite types as it could be potentially tricky to translate to isabelle (not sure yet)
 values 
 -- values section maintains basic board and game configurations that need to be known at state initialisation
 
--- A unique seq of MOVES_CARD numbers identifying valid moves
--- This will be use to distinguish valid moves from invalid ones.
+-- A anique seq of MOVES_CARD numbers identifying valid moves
 -- implementation below
 MUV : MoveUVS = MoveUniqueValues();
 
@@ -114,27 +111,25 @@ inv coord == coord < N;
 Point = seq of Coord
 inv point == len point = 2;
 
--- a pair is simply a pair of points which could be of any order and could potentially be used for input.
+-- a pair is simply a pair of points which could be any points.
 -- this is defined so that later work could just refer to a seq of 2 points 
 -- without having to repeat the invariant
 Pair = seq of Point
 inv pair == len pair = 2 and card elems pair = len pair;
 			
--- PairMove[p1, p2] <=> Move
--- a PairMove is a valid pair of points that is able to construct a Move.  
+-- a PairMove is a valid pair of points that is able to construct a Move. 
 -- 2 points are stored in order of their corresponding distance to the origin.
--- There is no need to rule out diagonal moves or out of bound moves. 
--- All invalid moves will have values which are different from valid ones.
+-- there is no need to rule out dianogal moves. All invalid moves will have unique values which are different from valid ones.
 PairMove = Pair
 inv pL == getUV(pL(1)(1), pL(1)(2), pL(2)(1), pL(2)(2)) in set elems MUV;
 
--- simple user input that contains a seq of Pair
+-- simple user input
 Input = seq of Pair
 inv input == card elems input = len input and len input < MOVES_CARD and 
 forall pair in set elems input & isPairAPairMove(pair, MUV);
 		
 functions 
--- new implementation adapting coords.
+-- new implementation
 
 -- generate BOX_MOVE_MAPPING!!
 -- produce the mapping in an automated way thanks to Leo's idea.
@@ -147,12 +142,12 @@ post isValidMapping(RESULT) -- should be a valid map after each call
 measure generateBoxMovesMapping_measure; 
 				
 -- work out the sqr distance of a point from origin
--- no need to calculate the real distance as the square roor is potentially expensive. The square is sufficient.
+-- no need to calculate the real distance as the square roor is potentially expensive. Its square is sufficient.
 distanceSqrToOrigin: Point -> nat
 distanceSqrToOrigin(point) == 
 				point(1) * point(1) + point(2) * point(2); 
 
--- see if a pair can be a pair move (a pair needs not be ordered)
+-- see if a pair can be a move (needs not ordered)
 isPairAPairMove: Pair * MoveUVS -> bool
 isPairAPairMove(pair, muv) == 
 -- check both ways
@@ -224,7 +219,7 @@ genBoxesSides_measure(max_id, muv) == max_id;
 
 -- check is both players take turn to play based on the moves taken
 -- what needs checking
--- Total number of moves w/ boxes wond
+-- Total number of moves w/ boxes won
 -- sequence of moves (sync)
 fairPlay: nat * nat * Player -> bool
 fairPlay(turns_p1, turns_p2, currentPlayer) == 
