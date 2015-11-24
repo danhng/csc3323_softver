@@ -1,0 +1,624 @@
+module Nguyen130352046
+exports all
+imports from IO		 functions  println	renamed println;
+															--printf  renamed printf; 
+															print		renamed print
+definitions
+
+-- IMPORTANT!
+-- input and output through coordinates! (user friendly)
+-- game logic thrrough moves!
+
+
+-- please run testGame[type] operation (no parameter required) to test the game 
+-- ex print testGameNaive() 
+
+
+-- common abbreviations
+-- [VIS] the function/operation is for theh game visulisation purpose and does not have anything to do with the game logic
+-- [N_ISB] the function/operation will not be translated to Isabelled as it does not have anything to do with the game logic
+	
+
+
+
+values 
+-- values section maintains basic board and game configurations that need to be known at state initialisation
+MUV : seq of nat = MoveUniqueValues();
+
+-- predefined box-move mapping. At the moment intuitive numbering is selected (See intuitive.jpg).
+-- another option is move based numbering which potentially could support the selection of best moves better. 
+-- See move_based.jpg please.
+BOX_MOVES_MAPPING : BoxMovesMapping = 
+-- a numbering scheme based on types of moves. Needs further consideration. See move_based.jpg
+--									{
+--										0 |-> [0, 11, 12, 19], 
+--										1 |-> [1, 12, 13, 20], 
+--										2 |-> [2, 3, 13, 14], 
+--										3 |-> [4, 14, 15, 21],
+--										4 |-> [5, 6, 15, 16], 
+--										5 |-> [7, 16, 17, 22],
+--										6 |-> [8, 9, 17, 18],
+--										7 |-> [10, 18, 19, 23], 
+--										8 |-> [20, 21, 22, 23] 
+--									};
+-- intuitive numbering. Clock wise order. See intuitive.jpg
+										{
+											0 |-> [0, 4, 7, 3], 
+											1 |-> [1, 5, 8, 4], 
+											2 |-> [2, 6, 9, 5], 
+											3 |-> [7, 11, 14, 10],
+											4 |-> [8, 12, 15, 11], 
+											5 |-> [9, 13, 16, 12],
+											6 |-> [14, 18, 21, 17],
+											7 |-> [15, 19,  22, 18], 
+											8 |-> [16, 20, 23, 19] 
+										};
+					
+-- mapping in clock wise order of moves
+BOARD_MAPPING : seq of Move = 
+														-- See move_based.jpg
+														--	[ 0, 1, 2, 11, 12, 13, 3,
+														--	 19, 20, 14, 10, 23, 21, 4,
+														--	 18, 22, 15, 9, 17, 16, 5,
+														-- 	 8, 7, 6];
+														
+														-- See intuitive.jpg
+														[0, 1, 2, 3, 4, 5, 6,
+														7, 8, 9, 10, 11, 12, 13, 
+														14, 15, 16, 17, 18, 19, 
+														20, 21, 22, 23];
+															 
+-- [VIS] [N_ISB] 
+BOARD_BOX_SIDE : seq of Move = 
+												--  Needs further consideration. See move_based.jpg				
+												 -- [11, 12, 13, 21, 16, 17, 9, 10, 23];
+														
+														-- See intuitive.jpg
+														[3, 4, 5, 10, 11, 12, 17, 18, 19];
+-- how many dots per side
+N = 4;
+
+-- how many dots on the board 
+-- n ^ 2
+DOTS = 16;
+
+-- how many boxes available
+-- n x n boxes
+BOXES_CARD = 9;
+
+-- how many boxes needed to get to win at least
+BOXES_TO_WIN : nat = (BOXES_CARD / 2 + 0.5);
+
+-- how many moves available
+-- 2 x n x (n-1) moves
+MOVES_CARD = 24; 
+
+
+-- an example of moves
+moves1 : Moves = [0, 23, 20, 21, 5, 12, 19, 22];
+
+-- todo write some scripts here to test
+
+types 
+
+-- two players at most
+Player = <P1> | <P2>;
+
+-- box number
+-- box is numbered from zero
+Box = nat
+inv box == box < BOXES_CARD;
+
+-- move number
+Move = nat;
+
+-- moves
+-- a sequence of moves, order is important
+-- inv: all moves are unique, moves must not exceed the maximum number of moves
+Moves = seq of Move
+inv moves == (len moves = card elems moves) and len moves <= MOVES_CARD; 
+
+-- sequence of unique values for valid moves
+MoveUVS = seq of Move
+inv uvs == len uvs = MOVES_CARD;
+
+-- boxes
+-- a set of boxes completed which could be used in several scenarios
+-- order is not important
+-- inv: boxes must not exceed the maximum number of boxes in the board
+Boxes = set of Box
+inv boxes == card boxes <= BOXES_CARD; 
+
+-- represent box move layout of the game
+-- could be a seq of Moves however mapping would allow easier modifications i.e. box moves swapping
+BoxMovesMapping = map Box to Moves
+inv mapping ==  dom mapping = {0, ..., BOXES_CARD - 1} and
+								forall box_moves in set rng mapping & len box_moves = 4;
+
+-- todo strategies
+MoveType = <Sides> | <Spokes> | <Cen>;
+
+-- count how many turns each player has played (a turn can and will likely contains many moves as a result of box completion
+TurnCount = nat 
+inv turnCount == turnCount <= MOVES_CARD;
+
+Coord = nat
+inv coord == coord < N;  
+
+-- a point as a seq of Coord
+Point = seq of Coord
+inv point == len point = 2;
+
+-- a pair is simply a pair of points which could be any points.
+-- this is defined so that later work could just refer to a seq of 2 points without having to repeat the invariant
+Pair = seq of Point
+inv pair == len pair = 2 and card elems pair = len pair;
+					
+-- a PairMove is a valid pair of points that is able to construct a Move. 
+-- 2 points are stored in order of their corresponding distance to the origin.
+-- I limit the use of compositive types as it could be hard to translate to isabelle
+-- there is no need to rule out dianogal moves. All invalid moves will have unique values which are different from valid ones.
+PairMove = Pair
+inv pL == getUV(pL(1)(1), pL(1)(2), pL(2)(1), pL(2)(2)) in set elems MUV;
+		
+functions 
+-- new implementation
+
+--Move_Unique_Values:() -> seq of nat
+--Move_Unique_Values() == 
+	--			genMoveValuesHorizontal(0, 0) ^ genMoveValuesVertical(0, 3);
+				
+-- no need to calculate the real distance as the square roor is potentially expensive. Its square is sufficient.
+distanceSqrToOrigin: Point -> nat
+distanceSqrToOrigin(point) == 
+				point(1) * point(2); 
+
+-- see if a pair can be a move (needs not ordered)
+isPairAPairMove: Pair * MoveUVS -> bool
+isPairAPairMove(pair, muv) == 
+-- check both ways
+ getUV(pair(1)(1), pair(1)(2), pair(2)(1), pair(2)(2)) in set elems muv
+ or getUV(pair(2)(1), pair(2)(2), pair(1)(1), pair(1)(2)) in set elems muv;
+	
+-- important! convert a pair to a pair move
+-- inputs need not be ordered
+toPairMove: Pair * MoveUVS -> PairMove
+toPairMove(pair, muv) == 
+-- there is no need to worry about 2 different points having the same dis to origin as it has already been filter out using pre cond
+	let d1 = distanceSqrToOrigin(pair(1)), d2 = distanceSqrToOrigin(pair(2)) in
+	if d1 < d2 then
+		[pair(1), pair(2)]
+	else [pair(2), pair(1)]
+pre isPairAPairMove(pair, muv);
+
+-- get a unique value for a move (pairMove
+getMUV: PairMove -> nat
+getMUV(pL) == 
+	getUV(pL(1)(1), pL(1)(2), pL(2)(1), pL(2)(2));
+
+-- generate a Decimal value of base N
+getUV: nat * nat * nat * nat -> nat
+getUV(n1, n2, n3, n4) == 
+-- base N
+n4 + N * n3 + N * N * n2 + N * N * N * n1
+pre n1 < N and n2 < N and n3 < N and n4 < N; 
+
+-- given a pivot point (top left corner of every box), produce a complete box of 4 points
+-- [tl, tr, bl, br]
+genBoxPoints: Point * MoveUVS -> seq of Point
+genBoxPoints(pivot, muv) == 
+[pivot, [pivot(1), pivot(2) + 1], [pivot(1) + 1, pivot(2)], [pivot(1) + 1, pivot(2) + 1]]
+pre pivot(1) < N and pivot(2) < N -- must not be edge points.
+post len RESULT = 4 and len RESULT = card elems RESULT and 
+			-- 4 pairLines must be created
+			isPairAPairMove([RESULT(1), RESULT(2)], muv) and isPairAPairMove([RESULT(1), RESULT(3)], muv) 
+			and isPairAPairMove([RESULT(2), RESULT(4)], muv) and isPairAPairMove([RESULT(3), RESULT(4)], muv);
+
+-- generate a box moves give a box number
+generateBoxMoves: Box * MoveUVS -> Moves
+generateBoxMoves(box_number, muv) == 
+let points : seq of Point = genBoxPoints([box_number div (N - 1), box_number rem (N-1)], muv) in
+	 [getMUV([points(1), points(2)]), 
+	 getMUV([points(1), points(3)]),
+	 getMUV([points(2), points(4)]), 
+	 getMUV([points(3), points(4)])]
+post len RESULT = 4;
+
+-- generate BOX_MOVE_MAPPING!!
+genBoxMovesMapping: nat * MoveUVS -> BoxMovesMapping
+genBoxMovesMapping(boxes_card, muv) == 
+		if boxes_card = 1 then {box |-> ms | box in set {0} , ms in set {generateBoxMoves(0, muv)}}
+		else 
+			 {box |-> ms | box in set {boxes_card},  ms in set {generateBoxMoves(boxes_card - 1, muv)}} munion genBoxMovesMapping(boxes_card - 2, muv)
+measure generateBoxMovesMapping_measure; 
+
+generateBoxMovesMapping_measure: nat * seq of nat-> nat
+generateBoxMovesMapping_measure(n, muv) == n; 
+
+
+--genMoveValuesHorizontal: nat * nat -> seq of Move
+--genMoveValuesHorizontal(i, k) ==
+--if k <> N - 1 then [getPairLineUniqueValue(pairLine([[i, k], [i, k+1]]))] ^ genMoveValuesHorizontal(i, k+1)
+--			else 
+--				if i <> N then [getPairLineUniqueValue(pairLine([[i, k], [i, k+1]]))] ^ genMoveValuesHorizontal(i+1, 0)
+--				else [];
+
+--genMoveValuesVertical: nat * nat -> seq of Move
+--genMoveValuesVertical(i, k) ==
+--if k <> 0  then [getPairLineUniqueValue(pairLine([[i, k], [i, k-1]]))] ^ genMoveValuesVertical(i, k-1)
+--			else 
+	--			if i <> N then [getPairLineUniqueValue(pairLine([[i, k], [i, k-1]]))] ^ genMoveValuesVertical(i+1, N-1)
+	--			else [];
+
+
+-- check is both players take turn to play based on the moves taken
+-- what needs checking
+-- Total number of moves w/ boxes won
+-- sequence of moves (sync)
+fairPlay: nat * nat * Player -> bool
+fairPlay(turns_p1, turns_p2, currentPlayer) == 
+		-- P1 starts first and now is P1's turn 
+		if (currentPlayer = <P1>) then turns_p1 = turns_p2
+		-- P2's turn (P2 not yet plays)
+		else turns_p1 = turns_p2 + 1;
+
+-- WRONG! DC not handled
+-- count how many turns (not moves) so far for this particuplar seq of moves
+-- turn count = move count - # boxes won
+--countTurns: nat * nat -> nat
+--countTurns(moves_count, boxes_count) == moves_count - boxes_count
+--post RESULT < MOVES_CARD;
+
+-- count how many moves left
+movesLeft: Moves -> nat
+movesLeft(moves) == MOVES_CARD - len moves;
+
+-- a valid mapping will not exceed boxes and moves available
+-- could be partial or total (as in BOX_MOVES_MAPPING)
+isValidMapping : map Box to Moves -> bool
+isValidMapping(mapping) == 
+									dom mapping  subset {0, ..., BOXES_CARD - 1} and
+									forall box_moves in set rng mapping & len box_moves = 4;
+
+-- save a move to an exisiting seq of moves, return it
+saveMove: Moves * Move -> Moves
+saveMove(moves, move) ==
+	moves ^ [move]
+-- prior to saving the move to be saved must not exist in the moves
+	pre move not in set elems moves
+post move in set elems RESULT;
+
+-- get boxes that have been completed given the moves
+-- TODO rename
+getBM_: Moves * map Box to Moves -> Boxes 
+getBM_(moves, mapping) == 
+			if card dom mapping = 0 then {}
+			else 
+				let i : nat = (card dom mapping - 1) in 
+					getBM_(moves, {i} <-: mapping) union 
+						if elems mapping(i) subset elems moves then {i}
+						else {}
+pre isValidMapping(mapping)
+measure getBM_measure;
+
+-- measure of the getBM_
+getBM_measure: Moves * map Box to Moves -> nat
+getBM_measure(moves, mapping) == card dom mapping;
+
+-- is game result resolved?
+gameDecided: Boxes * Boxes -> bool
+gameDecided(boxes_p1, boxes_p2) == 
+ 		-- whoever get number of boxes exceeding required cond wins
+ 		-- this invariant is pretty loose, the inv in state will strengthen it
+ 		card boxes_p1 >= BOXES_TO_WIN or card boxes_p2 >= BOXES_TO_WIN;
+
+-- true if p1 won, false otherwise (p2 won)
+whoWon: Boxes * Boxes -> bool
+whoWon(boxes_p1, boxes_p2) == 
+	 card boxes_p1 >= BOXES_TO_WIN
+-- check for game status first
+pre gameDecided(boxes_p1, boxes_p2);
+
+-- change player
+flipPlayer: Player -> Player
+flipPlayer(player) == 
+	if (player = <P1>) then <P2> else <P1>;
+
+-- check if this move has won any box
+-- return Boxes containing newly won boxes
+wonAnyBox: Moves * Move * map Box to Moves -> Boxes
+wonAnyBox(moves, move, mapping) == 
+let
+			 newMoves : Moves = moves ^ [move],
+			 newPossibleBoxes : Boxes = boxForMove(move, mapping) 
+			 in
+			 {box | box in set newPossibleBoxes & elems mapping (box) subset elems newMoves}
+--		oldBoxes : Boxes = getBM_(moves, mapping), 
+--		newBoxes : Boxes = getBM_(newMoves, mapping) in 
+--		-- 1 move wins at most 2 boxes
+--		(let dif : Boxes = newBoxes \ oldBoxes in 
+--		if card dif = 0 then {}
+--		else   dif union wonAnyBox(moves, move, dif <-: mapping))
+pre move not in set elems moves and isValidMapping(mapping) 
+post card RESULT <= 2;
+-- todo measure
+-- measure wonAnyBox_measure;
+
+-- wonAnyBox_measure: Moves * Move * map Box to Moves -> nat
+-- wonAnyBox_measure(moves, move, mapping) == card dom mapping; 
+
+-- boxes whose one side is this move (most 2)
+boxForMove: Move * BoxMovesMapping -> Boxes
+boxForMove(move, mapping) == 
+{box | box in set {0, ..., 8} & move in set elems mapping(box)}
+post card RESULT <= 2;
+
+-- [VIS] [N_ISB]
+playerBoxSideMapping: Boxes * Player -> map Move to Player
+playerBoxSideMapping(boxes, player) == 
+if boxes = {} then {|->}
+else 
+	 let box in set boxes in 
+	 		{BOARD_BOX_SIDE(box + 1) |-> player } munion playerBoxSideMapping(boxes \ {box}, player)
+measure playerBoxSideMapping_measure;
+
+-- [VIS] [N_ISB]
+playerBoxSideMapping_measure: Boxes * Player -> nat
+playerBoxSideMapping_measure(boxes, player) == card boxes;
+
+-- generate some silly moves
+generateNaiveMoves: () -> Moves
+generateNaiveMoves() == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
+
+-- generate Double Cross moves
+generateDCMoves: () -> Moves
+generateDCMoves() == [0, 3, 4, 5, 6, 10, 11, 13, 17, 18, 22, 23, 7 , 21, 14] --, 1];
+				
+-- main course
+state Board of
+	currentPlayer : Player
+	-- initial mapping used as guideline
+	boxMovesMapping : BoxMovesMapping
+	-- all moves played
+	moves : Moves
+	-- moves_p1, _p2 and boxes_p1, _p2 can all be computed in real time, however, there is a trade off
+	-- between performance and memory. I chose performance over memory, therefore each player's data will 
+	-- be cached to improve performance given that the overhead memory for them is not really significant.
+	moves_p1 : Moves
+	moves_p2 : Moves
+	boxes_p1 : Boxes
+	boxes_p2 : Boxes
+	turns_p1 : TurnCount
+	turns_p2 : TurnCount
+	-- for visualising board, to be omitted when translated to Isabelle
+	box_side_won: map Move to Player
+	-- game results
+	resultResolved : bool
+	winner : token 
+inv mk_Board(currentPlayer, boxMovesMapping, moves, moves_p1, moves_p2, 
+									boxes_p1, boxes_p2, turns_p1, turns_p2,
+									box_side_won, resultResolved, winner) == 
+	-- moves integerity
+	-- each move is played by only 1 player
+	forall move_p1 in set elems moves_p1 & move_p1 not in set elems moves_p2 and
+	-- total moves = moves_p1 union moves_p2
+	elems moves_p1 union elems moves_p2 = elems moves and
+	-- boxes integrity
+	-- each box is won by only 1 player
+	boxes_p1 inter boxes_p2 = {} and 
+	-- fairplay
+	let boxes_p1_count : nat = card boxes_p1, boxes_p2_count : nat = card boxes_p2
+	in
+	-- total boxes won at any time should not exceed total boxes winnable
+	boxes_p1_count + boxes_p2_count <= BOXES_CARD 
+	-- todo [solved] fairPlay at the moment is the bottle neck. it slows the whole thing down!!
+	-- lession: avoid passing too many arguments and doing too much miscellaneous repetitive computation
+	and fairPlay(turns_p1, turns_p2, currentPlayer)
+	and not resultResolved <=> winner = mk_token("null") 
+init board == board = mk_Board(<P1>, BOX_MOVES_MAPPING, [], [], [], {}, {}, 0, 0, {|->}, false, mk_token("null")) 
+end 
+
+operations 
+
+-- get boxes that have been completed given the moves (a function alternative is defined in functions section)
+-- TODO rename
+--getBM: Moves ==> Boxes 
+--getBM(moves_) == 
+--	(dcl boxes : Boxes := {};
+--		for all i in set dom BOX_MOVES_MAPPING do
+--			if elems BOX_MOVES_MAPPING(i) subset elems moves_ then 
+--				boxes := boxes union {i};    
+--				return boxes) 	;
+		
+		
+
+
+-- generate a set of unique values for moves given a input n x n board
+-- I won't implement it as a recursive function as Overture has a limited stack (This is a lesson from last year's coursework)
+-- and it's likely to take a very long time to generate the result 
+MoveUniqueValues: () ==> seq of nat
+MoveUniqueValues() == 
+	(dcl uniques : seq of nat := [], index : nat := 0, y : nat := 0, x : nat := 0;
+			(for i = 0 to N - 1 by 1 do  
+			for k = 0 to N - 2 by 1 do 
+			uniques := uniques ^ [getUV(i, k, i, k+1)];
+			for i = 0 to N - 1 by 1 do
+			for k = 3 to 1 by -1 do  
+			uniques := uniques ^ [getUV(k-1, i, k, i)];  
+			);
+			return uniques;
+		); 
+			
+-- change current player
+flipCurrentPlayer: () ==> ()
+flipCurrentPlayer() == 
+	currentPlayer := if (currentPlayer = <P1>) then <P2> else <P1>
+pre movesLeft(moves) > 0 and false
+post currentPlayer <> currentPlayer~;
+
+-- is game truly finished? (no move left)
+isGameFullyDone: () ==> bool
+isGameFullyDone() == return movesLeft(moves) = 0;
+
+-- play the move (saving the move to the state)
+-- param player could be dropped as currentPlay will be used. However, this is used for clarity
+playMove: Move * Player ==> ()
+playMove(move, player) == 
+	(dcl 
+		newMoves : Moves := saveMove(moves, move), 
+    newMoves_p : Moves := 
+    								if player = <P1> then saveMove(moves_p1, move)
+    								else saveMove(moves_p2, move), 
+    -- todo something wrong here
+    boxesWon: Boxes := wonAnyBox(moves, move, BOX_MOVES_MAPPING), 
+   							 
+    -- next player will depend on whether the lastest move wins any box...
+    nextPlayer : Player := 
+    								if boxesWon <> {} then player 
+    								else flipPlayer(player),
+    resultYet : bool := false;
+    								--print("newBoxesWon");println(boxesWon);	
+    								--print("newMoves_p");println(newMoves_p);
+	-- only state assignments are allowed which is a bit annoying
+	-- In order to ensure fairPlay works at all time and does not fail during the new moves and currentPlayer 
+	-- assignments, atomic needs to be used..
+	if currentPlayer = <P1> then 
+			atomic(
+			-- updates moves and boxes
+			moves := newMoves;
+	 		moves_p1 := newMoves_p;
+	 		boxes_p1 := boxes_p1 union boxesWon;
+	 		-- change current player at last
+		 	currentPlayer := nextPlayer;	 	
+		 	-- [VIS] [N_ISB]
+		 	box_side_won := box_side_won munion playerBoxSideMapping(boxesWon, <P1>);
+		 	-- if change player then increment count
+		 	turns_p1 := if nextPlayer <> player then turns_p1 + 1 else turns_p1
+	 		)
+	else 
+	 	atomic (
+	 		-- update moves and boxes
+			moves := newMoves;
+	 		moves_p2 := newMoves_p;
+	 		boxes_p2 := boxes_p2 union boxesWon;
+	 		-- change current player at last
+	 		currentPlayer := nextPlayer;
+	 		-- [VISUALISATION] [ISABELLE_OMITTED]
+	 		-- if change player then increment count else (means win box) then stay
+		 	turns_p2 := if nextPlayer <> player then turns_p2 + 1 else turns_p2
+	 		box_side_won := box_side_won munion playerBoxSideMapping(boxesWon, <P2>);	 	
+	 	);
+	-- result resolved yet?
+	resultYet := gameDecided(boxes_p1, boxes_p2);
+	-- update state vars if that's the case
+	if resultYet then 
+		atomic (
+			resultResolved := true;
+			winner := if whoWon(boxes_p1, boxes_p2) then mk_token(<P1>) else mk_token(<P2>)
+		);
+	 	print("Player ");print(player);print(" played move ");println(move);
+	 	printBoard())
+	pre player = currentPlayer;
+
+-- main operation used to play the game
+playGame: Moves ==> ()
+playGame(ms) ==
+	for index = 1 to len ms do (
+		let move : Move = ms(index) in 
+			playMove(move, currentPlayer);
+	);
+	
+-- test 1
+testGameNaive: () ==> ()
+testGameNaive() == 
+	let ms : Moves = generateNaiveMoves() in
+		playGame(ms);
+		
+-- test 2 DC
+testGameDC: () ==> ()
+testGameDC() == 
+	let ms: Moves = generateDCMoves() in 
+		playGame(ms); 
+
+-- print the state of the board
+printBoard: () ==> ()
+printBoard() == 
+(
+	print("Current Player: "); println(currentPlayer);
+	print("Moves: "); println(moves);
+	print("P1 Moves: "); println(moves_p1);
+	print("P1 turn count: "); println(turns_p1);
+	print("Boxes won by P1: "); println(boxes_p1);
+	print("P2 Moves: "); println(moves_p2);
+	print("P2 turn count: "); println(turns_p2);
+	print("Boxes won by P2: "); println(boxes_p2);
+	print("Box_Side_Mapping: "); println(box_side_won);
+	if resultResolved then 
+		(
+			print("Winner: "); println(winner)
+		);
+	print("Board Visualised: \n"); displayBoard(moves);
+);
+
+-- visualise the board
+-- something like this:
+-- .___.___.___.
+-- |   |   |   |
+-- .___.___.___.
+-- |   | 1 |   |
+-- .___.___.___.
+-- |   | 2 |   |
+-- .___.___.___.
+displayBoard: Moves ==> () 
+displayBoard(ms) == 
+
+(	
+	dcl current: nat := 0, index : nat := 0, k : nat := 0, r : seq of char := "\n";
+			while (index < MOVES_CARD) do (
+			current := BOARD_MAPPING(index + 1);
+			--print("current "); print(current); print("k "); println(k);
+			r := r ^ 
+			let played : bool = current in set elems ms, horizontal : bool = k < 3 in 
+				if played then 
+					if horizontal then 
+							if k = 2 then ".___.\n" else ".___"
+					else
+							if k = 6 then "|\n" else 
+								if current in set dom box_side_won then 
+									if box_side_won(current) = <P1> then "| 1 " else "| 2 "
+								else 	"|   "
+				else 
+					if horizontal then 
+							if k = 2 then ".   .\n" else ".   "
+					else 
+							if k = 6 then "    \n" else "    ";  
+				index := index + 1;
+				k := index rem 7;
+				--print("k = "); println(k);
+				--println(r);
+				);
+		println(r);
+		);  
+	
+-- reset the game by resetting state variables
+reset: () ==> ()
+reset() == 
+	-- atomic needed for fairPlay inv
+	atomic (
+		--<P1>, BOX_MOVES_MAPPING, [], [], [], {}, {}, {|->}, false, mk_token("null")
+		currentPlayer := <P1>;
+		boxMovesMapping := BOX_MOVES_MAPPING;
+		moves := [];
+		moves_p1 := [];
+		moves_p2 := [];
+		boxes_p1 := {};
+		boxes_p2 := {};
+		box_side_won := {|->};
+		resultResolved := false;
+		winner := mk_token("null");
+	);
+
+
+
+				
+end Nguyen130352046
